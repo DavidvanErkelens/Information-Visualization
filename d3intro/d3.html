@@ -35,19 +35,18 @@
     var yScale = d3.scaleLinear()
         .range([0, imageHeight]);
 
-    var chart = d3.select(".chart")
+    var canvas = d3.select(".chart")
         .attr("width", imageWidth + 2 * padding)
         .attr("height", imageHeight + 2 * padding)
-        .append("g")
+
+    var chart = canvas.append("g")
         .attr("transform", "translate(" + padding + ", " + padding + ")")
-            .attr("width", imageWidth)
-            .attr("height", imageHeight)
+        .attr("width", imageWidth)
+        .attr("height", imageHeight)
 
 
     d3.csv("meteo.csv", function(loadedData) 
     {
-        var year = 2013
-
         // format the data
         loadedData.forEach(function(d) {
             d.temperature = +d.temperature;
@@ -55,16 +54,29 @@
             d.month = +d.month;
             d.year = +d.year;
         });
+        
+        [minYear, maxYear] = d3.extent(loadedData, function(d) { return d.year; });
+        var years = d3.range(minYear, maxYear + 1)
+        
+        var averages = {}
 
-        var data = []
+        var monthAxis = d3.scaleTime()
+            .range([0, 12])
+            .domain([new Date(2012, 1, 1), new Date(2012, 12, 31)]);
 
-        for (i = 0; i < 12; i++)
+        console.log(monthAxis(5))
+
+        years.forEach(function(year)
         {
-            var dummy = {}
-            dummy['month'] = i + 1;
-            dummy['average'] = averageForMonth(loadedData, i + 1, year);
-            data[i] = dummy; 
-        }
+            // Create array for this year
+            averages[year] = []
+            for (i = 0; i < 12; i++) averages[year].push({'average' : averageForMonth(loadedData, i + 1, year), 'month' : monthAxis(i)});
+        });
+
+
+        data = averages[2011];
+
+        console.log(data);
 
         var barWidth = imageWidth / data.length;
 
@@ -88,19 +100,20 @@
 
         chart.append("g")
             .attr("transform", "translate(0, " + imageHeight + ")")
-            .call(d3.axisBottom(xScale).tickPadding(8))
+            .call(d3.axisBottom(xScale).tickPadding(8).tickFormat(d3.timeFormat("%B")))
 
         chart.append("g")
-            .attr("transform", "translate(0)")
+            // .attr("transform", "translate(0)")
             .call(d3.axisLeft(yScale).tickPadding(15));
     });
 
 
     function averageForMonth(data, month, year)
     {
-        return d3.mean(data.filter(function(d) { return d.month == month && d.year == year}), function(d) { return d.temperature; });
-        // return average;
-
+        return d3.mean(
+            data.filter(function(d) { return d.month == month && d.year == year}), 
+            function(d) { return d.temperature; }
+        );
     }
 
 
