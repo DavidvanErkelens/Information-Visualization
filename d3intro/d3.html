@@ -5,6 +5,7 @@
     <style>
         .chart rect {
           fill: steelblue;
+          stroke:black;
         }
 
         .chart text {
@@ -12,8 +13,17 @@
           text-anchor: middle;
         }
 
+        .chart text.header {
+            font:20px sans-serif;
+          text-anchor: middle;
+        }
+
         .chart .white {
             fill:white;
+        }
+
+        .hidden {
+            visibility: hidden;
         }
     </style>
 </head>
@@ -22,31 +32,44 @@
 <script src="d3/d3.min.js"></script>
 <script type="text/javascript">
 
-    // var barWidth = 50;
     var imageWidth = 750;
     var imageHeight = 450;
     var scaleFactor = 1;
     var padding = 50;
+    var topMargin = 50;
 
     var xScale = d3.scaleBand()
         .range([0, imageWidth])
-        .padding(0.1)
+        .padding(0.1);
 
     var yScale = d3.scaleLinear()
         .range([0, imageHeight]);
 
     var canvas = d3.select(".chart")
         .attr("width", imageWidth + 2 * padding)
-        .attr("height", imageHeight + 2 * padding)
+        .attr("height", imageHeight + 2 * padding + topMargin);
 
     var chart = canvas.append("g")
-        .attr("transform", "translate(" + padding + ", " + padding + ")")
+        .attr("transform", "translate(" + padding + ", " + (padding + topMargin) + ")")
         .attr("width", imageWidth)
-        .attr("height", imageHeight)
+        .attr("height", imageHeight);
+
+    var headerText = canvas.append("text")
+        .attr("class", "header")
+        .attr("transform", "translate(" + (imageWidth + 2 * padding) / 2 + ", 50)")
+        .text("Loading data...");
+
+    var subText = canvas.append("text")
+        .attr("class", "subText")
+        .attr("class", "hidden")
+        .attr("transform", "translate(" + (imageWidth + 2 * padding) / 2 + ", 70)")
+        .text("Average...")
 
 
     d3.csv("meteo.csv", function(loadedData) 
     {
+        var year = 2011;
+
         // format the data
         loadedData.forEach(function(d) {
             d.temperature = +d.temperature;
@@ -58,53 +81,73 @@
         [minYear, maxYear] = d3.extent(loadedData, function(d) { return d.year; });
         var years = d3.range(minYear, maxYear + 1)
         
+
         var averages = {}
-
-        var monthAxis = d3.scaleTime()
-            .range([0, 12])
-            .domain([new Date(2012, 1, 1), new Date(2012, 12, 31)]);
-
-        console.log(monthAxis(5))
 
         years.forEach(function(year)
         {
             // Create array for this year
             averages[year] = []
-            for (i = 0; i < 12; i++) averages[year].push({'average' : averageForMonth(loadedData, i + 1, year), 'month' : monthAxis(i)});
+            for (i = 0; i < 12; i++) 
+                averages[year].push({'average' : averageForMonth(loadedData, i + 1, year), 'month' : i});
         });
 
+        data = averages[year];
 
-        data = averages[2011];
-
-        console.log(data);
-
-        var barWidth = imageWidth / data.length;
+        headerText.text("Temperature averages for " + year);
 
         xScale.domain(data.map(function(d) { return d.month; }))
         yScale.domain([d3.max(data, function(d) { return d.average; }), 0]);
 
-        var bar = chart.selectAll("g").data(data)
-            .enter().append("g")
+        var dataJoin = chart.selectAll("g").data(data);
+
+        var bar = dataJoin.enter().append("g")
             .attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; });
+            
+        // dataJoin.update().attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; });
+
+        // chart.selectAll("g").data(data)
 
         bar.append("rect")
             .attr("width", xScale.bandwidth())
             .attr("height", function(d) { return imageHeight - yScale(d.average); } )
-            .attr("x", function(d) { return 0; });
+            .attr("x", function(d) { return 0; })
+            .on("mouseover", function(d) {
+                var element = d3.select(this);
+                element.style("fill", "orange");
+                element.style("border", "steelblue");
+
+                subText.text(intToMonthString(d.month) + " " + year + " average: " + d.average.toFixed(3));
+                subText.classed("hidden", false);
+            })
+            .on("mouseout", function (d) {
+                var element = d3.select(this);
+                element.style("fill", "steelblue");
+                element.style("border", "black");
+                subText.classed("hidden", true);
+            });
 
         bar.append("text")
             .attr("class", "white")
             .attr("x", function(d) { return xScale.bandwidth() / 2; })
             .attr("y", function(d) { return 20; })
-            .text(function(d) { return d.average.toFixed(2); });
+            .text(function(d) { return d.average.toFixed(1); });
+
+        
 
         chart.append("g")
             .attr("transform", "translate(0, " + imageHeight + ")")
-            .call(d3.axisBottom(xScale).tickPadding(8).tickFormat(d3.timeFormat("%B")))
+            .call(d3.axisBottom(xScale).tickPadding(8).tickFormat(function(d) {
+                // Format date
+                return intToMonthString(d)
+            }));
 
         chart.append("g")
-            // .attr("transform", "translate(0)")
             .call(d3.axisLeft(yScale).tickPadding(15));
+
+
+        // chart.selectAll("g").data(averages[2015])
+
     });
 
 
@@ -113,7 +156,14 @@
         return d3.mean(
             data.filter(function(d) { return d.month == month && d.year == year}), 
             function(d) { return d.temperature; }
-        );
+        ) / 10.0;
+    }
+
+    function intToMonthString(number)
+    {
+        var monthFormat = d3.timeFormat("%B");
+        var date = new Date("2018-" + (number+1) + "-01");
+        return monthFormat(date);
     }
 
 
