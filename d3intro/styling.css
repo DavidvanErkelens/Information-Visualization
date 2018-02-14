@@ -1,0 +1,22 @@
+.chart rect {
+  fill: steelblue;
+  stroke:black;
+}
+
+.chart text {
+  font: 10px sans-serif;
+  text-anchor: middle;
+}
+
+.chart text.header {
+    font:20px sans-serif;
+  text-anchor: middle;
+}
+
+.chart .white {
+    fill:white;
+}
+
+.hidden {
+    visibility: hidden;
+}
