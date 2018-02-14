@@ -43,7 +43,8 @@
         .padding(0.1);
 
     var yScale = d3.scaleLinear()
-        .range([0, imageHeight]);
+        .range([0, imageHeight])
+        .domain([10, 0]);
 
     var canvas = d3.select(".chart")
         .attr("width", imageWidth + 2 * padding)
@@ -63,12 +64,14 @@
         .attr("class", "subText")
         .attr("class", "hidden")
         .attr("transform", "translate(" + (imageWidth + 2 * padding) / 2 + ", 70)")
-        .text("Average...")
+        .text("Average...");
+
+    var yAxis = d3.axisLeft(yScale).tickPadding(15);
 
 
     d3.csv("meteo.csv", function(loadedData) 
     {
-        var year = 2011;
+        var year = 2012;
 
         // format the data
         loadedData.forEach(function(d) {
@@ -89,35 +92,96 @@
             // Create array for this year
             averages[year] = []
             for (i = 0; i < 12; i++) 
-                averages[year].push({'average' : averageForMonth(loadedData, i + 1, year), 'month' : i});
+                averages[year].push({'average' : averageForMonth(loadedData, i + 1, year), 'month' : i, 'year' : year});
         });
 
-        data = averages[year];
+        chart.append("g")
+            .attr("class", "yAxis");
 
+        chart.append("g")
+            .attr("class", "xAxis");
+
+        updateData(year, averages[year]);
+
+        document.onkeydown = checkKey;
+
+        function checkKey(e) {
+
+            e = e || window.event;
+
+
+            if (e.keyCode == '37' && year > minYear) 
+            {
+                year -= 1;
+                updateData(year, averages[year]);
+            }
+            else if (e.keyCode == '39' && year < maxYear) 
+            {
+                year += 1;
+                updateData(year, averages[year]);
+            }
+
+        }
+
+    });
+
+    function updateData(year, data)
+    {
         headerText.text("Temperature averages for " + year);
 
         xScale.domain(data.map(function(d) { return d.month; }))
         yScale.domain([d3.max(data, function(d) { return d.average; }), 0]);
 
-        var dataJoin = chart.selectAll("g").data(data);
+        var dataJoin = chart.selectAll("g.barChart").data(data);
+
+        dataJoin.exit().remove();
 
         var bar = dataJoin.enter().append("g")
-            .attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; });
+            .attr("class", "barChart")
+            .attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; })
+            .attr("width", xScale.bandwidth())
+            .attr("height", function(d) { return imageHeight - yScale(d.average); } )
+        
+        var container = dataJoin
+            .transition().duration(700)
+            .attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; })
+            .attr("width", xScale.bandwidth())
+            .attr("height", function(d) { return imageHeight - yScale(d.average); } );
             
-        // dataJoin.update().attr("transform", function(data, index) { return "translate(" + (xScale(data.month)) + ", " + (yScale(data.average)) + ")"; });
+        container.select("text")
+            .text(function(d) { return d.average.toFixed(1); });
 
-        // chart.selectAll("g").data(data)
+        container.select("rect.barItem")
+            .attr("width", xScale.bandwidth())
+            .attr("height", function(d) { return imageHeight - yScale(d.average); } )
+            .attr("x", function(d) { return 0; });
+        
+        bar.on("mouseover", function(d) {
+            var element = d3.select(this);
+            element.style("fill", "orange");
+            element.style("border", "steelblue");
+
+            subText.text(intToMonthString(d.month) + " " + d.year + " average: " + d.average.toFixed(3));
+            subText.classed("hidden", false);
+        })
+        .on("mouseout", function (d) {
+            var element = d3.select(this);
+            element.style("fill", "steelblue");
+            element.style("border", "black");
+            subText.classed("hidden", true);
+        });
 
         bar.append("rect")
             .attr("width", xScale.bandwidth())
             .attr("height", function(d) { return imageHeight - yScale(d.average); } )
             .attr("x", function(d) { return 0; })
+            .attr("class", "barItem")
             .on("mouseover", function(d) {
                 var element = d3.select(this);
                 element.style("fill", "orange");
                 element.style("border", "steelblue");
 
-                subText.text(intToMonthString(d.month) + " " + year + " average: " + d.average.toFixed(3));
+                subText.text(intToMonthString(d.month) + " " + d.year + " average: " + d.average.toFixed(3));
                 subText.classed("hidden", false);
             })
             .on("mouseout", function (d) {
@@ -133,22 +197,20 @@
             .attr("y", function(d) { return 20; })
             .text(function(d) { return d.average.toFixed(1); });
 
-        
-
-        chart.append("g")
+        chart.select(".xAxis")
             .attr("transform", "translate(0, " + imageHeight + ")")
+            .attr("class", "xScale")
             .call(d3.axisBottom(xScale).tickPadding(8).tickFormat(function(d) {
                 // Format date
                 return intToMonthString(d)
-            }));
+        }));
 
-        chart.append("g")
-            .call(d3.axisLeft(yScale).tickPadding(15));
+        chart.select(".yAxis")
+            .transition() 
+            .duration(750)   
+            .call(yAxis);
 
-
-        // chart.selectAll("g").data(averages[2015])
-
-    });
+    }
 
 
     function averageForMonth(data, month, year)
@@ -165,9 +227,6 @@
         var date = new Date("2018-" + (number+1) + "-01");
         return monthFormat(date);
     }
-
-
-
 
 </script>
 </body>
